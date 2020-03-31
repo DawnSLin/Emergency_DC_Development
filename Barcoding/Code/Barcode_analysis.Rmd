@@ -1,0 +1,434 @@
+---
+title: "Barcode_analysis"
+author: "Dawn Lin"
+date: "12/01/2020"
+output: html_document
+---
+
+# set directory
+```{r}
+setwd("~/Desktop/FL_DC_paper/Barcoding/Barcode_data")
+```
+
+# reading in raw count data
+```{r cars}
+DL191 = read.table("DL191_noE_pool.txt",header=TRUE)
+DL198 = read.table("DL198_noE_pool.txt",header=TRUE)
+DL33 = read.table("DL33_pool.txt",header=TRUE)
+DL70 = read.table("DL70_pool.txt",header=TRUE)
+DL72 = read.table("DL72_pool.txt",header=TRUE)
+
+dt=rbind(DL191,DL198,DL33,DL70,DL72)
+
+```
+
+# load packages
+```{r pressure, echo=FALSE}
+library(Rtsne)
+library(ggplot2)
+library(grid)
+library(reshape2)
+library(ggdendro)
+library(ggbeeswarm)
+library(dplyr)
+library(gridExtra)
+library(gplots)
+library(pheatmap)
+library(tidyverse)
+```
+
+# Specify color
+```{r}
+library(RColorBrewer)
+colors = rev(brewer.pal(7,"RdYlBu"))
+my_colour = c("#09A2D1","#F2AA4CFF")
+```
+
+# tsne analysis
+```{r}
+colnames(dt)
+set.seed(1234)
+tsne=Rtsne(dt[,c("cDC1","cDC2","pDC","B","mye")],perplexity=40,check_duplicates=FALSE) 
+
+# color code on cell type
+cDC1=
+  ggplot(data = NULL, aes(x=tsne$Y[,1],y=tsne$Y[,2],col=dt[,"cDC1"]))+
+  geom_point(size=0.5)+
+  scale_color_gradientn(colours=colors)+
+  theme_classic()+
+  labs(title="cDC1",x="",y="") 
+cDC2=
+  ggplot(data = NULL, aes(x=tsne$Y[,1],y=tsne$Y[,2],col=dt[,"cDC2"]))+
+  geom_point(size=0.5)+
+  scale_color_gradientn(colours=colors)+
+  theme_classic()+
+    labs(title="cDC2",x="",y="")
+pDC=
+  ggplot(data = NULL, aes(x=tsne$Y[,1],y=tsne$Y[,2],col=dt[,"pDC"]))+
+  geom_point(size=0.5)+
+  scale_color_gradientn(colours=colors)+
+  theme_classic()+
+    labs(title="pDC",x="",y="") 
+
+mye=
+  ggplot(data = NULL, aes(x=tsne$Y[,1],y=tsne$Y[,2],col=dt[,"mye"]))+
+  geom_point(size=0.5)+
+  scale_color_gradientn(colours=colors)+
+  theme_classic()+
+    labs(title="M",x="",y="") 
+B=
+  ggplot(data = NULL, aes(x=tsne$Y[,1],y=tsne$Y[,2],col=dt[,"B"]))+
+  geom_point(size=0.5)+
+  scale_color_gradientn(colours=colors)+
+  theme_classic()+
+    labs(title="B",x="",y="") 
+
+# color code on treatment
+D = data.frame(x = tsne$Y[,1], y = tsne$Y[,2], treatment = dt$`treatment`)
+D$treatment <- factor(D$treatment,levels = c("PBS", "FL"))
+treatment=
+  ggplot(D)+
+  geom_point(aes(x,y,colour = factor(treatment)),alpha=1,size=1,shape=21)+
+  scale_colour_manual(values = my_colour)+
+  theme_classic()+
+  ggtitle("treatment")
+
+D = data.frame(x = tsne$Y[,1], y = tsne$Y[,2], exp = dt$`exp`)
+exp=
+  ggplot(D)+
+  geom_point(aes(x,y,colour = factor(exp)),alpha=1,size=1,shape=21)+
+  theme_classic()+
+  ggtitle("expID")
+```
+
+## plot tsne
+```{r}
+pdf("tsne.pdf", height = 9,width = 18)
+multiplot(cDC1,cDC2,pDC,mye,B,treatment, cols=3)
+dev.off()
+```
+
+## add t-SNE coordinate to dataset
+```{r}
+D = data.frame(x = tsne$Y[,1], y = tsne$Y[,2])
+df = cbind(D,dt)
+```
+
+
+# DBSCAN clustering
+```{r}
+library(fpc)
+library(dbscan)
+library(factoextra)
+
+set.seed(100)
+# eps: the radius of neighborhood around a point x
+# MinPts: minimum number of neighbors within “eps” radius
+db=fpc::dbscan(tsne$Y, eps=2.2, MinPts=20)
+print(db)
+```
+
+## plot DBSCAN on tsne
+```{r}
+fviz_cluster(db, data=tsne$Y,stand = FALSE,
+             ellipse = FALSE, 
+             show.clust.cent = FALSE,
+             aes=c(tsne$Y[,1],tsne$Y[,2]),
+             xlab = FALSE, ylab = FALSE,
+             geom = "point", shape=16, pointsize=1, 
+             ggtheme = theme_classic())
+```
+
+# Add Cluster ID to dataframe
+```{r}
+df$cluster=db$cluster
+write.table(df, "pool_tsne_s1234p40_db_e22m20.txt", sep="\t", row.names=FALSE, col.names=TRUE)
+```
+
+# reorder dataframe
+```{r}
+df = df[c("cDC1","cDC2","pDC","mye","B","eos","mon","neu",
+         "treatment","exp","mouse","cluster","x","y")]
+
+df$cluster <- sub("^", "cluster ", df$cluster)
+
+D = data.frame()
+cluster = c("cluster 1",
+            "cluster 11",
+            "cluster 18",
+            "cluster 15",
+            "cluster 19",
+            "cluster 16",
+            "cluster 20",
+            "cluster 17",
+            "cluster 9",
+            "cluster 4",
+            "cluster 12",
+            "cluster 7",
+            "cluster 6",
+            "cluster 10",
+            "cluster 2",
+            "cluster 14",
+            "cluster 13",
+            "cluster 8",
+            "cluster 5",
+            "cluster 3")
+for (c in cluster)
+{ 
+  dtc=subset(df, df$cluster==c)
+  dtc=dtc[order(rowSums(dtc[,c(1:5)]),decreasing=T),]
+  D=rbind(D,dtc)
+}
+
+df_order = D
+
+```
+
+# plot heatmap
+```{r}
+anno_row = df_order[c(9,12)]
+
+my_colour = list(
+  treatment = c(PBS = "#09A2D1", FL = "#F2AA4CFF")
+)
+
+pheatmap(data.matrix(df_order[,c(1:5)]),
+         cluster_rows = F, cluster_cols = T, 
+         annotation_row = anno_row,
+         annotation_colors = my_colour,
+         filename = "heatmap.pdf",
+         width = 4,
+         height = 8
+         )
+```
+
+# Count #bc per cluster from each mouse
+```{r}
+D=data.frame()
+cluster=unique(df$cluster)
+for (c in cluster)
+{ 
+  dtc=subset(df, df$cluster==c)
+  mouse=unique(dt$mouse)
+  a=data.frame()
+  for (m in mouse)
+  {
+    counts=sum(dtc$mouse==m) 
+    b=data.frame(mouse=m,counts=counts)
+    b$cluster=c
+    a=rbind(a,b)
+  }
+  D=rbind(D,a)
+}
+write.table(D, "cluster_mouse_bc.txt", sep="\t", row.names=FALSE, col.names=TRUE)
+```
+
+
+# calculate proportional contribution to cDC1s by each clusters
+```{r}
+a = as.data.frame(sinh(df[1:8]))# transform read counts back to linear
+b = as.data.frame(df[9:14])
+dt.n = cbind(a,b)
+
+cluster=unique(dt.n$cluster)
+D=data.frame()
+for (c in cluster)
+{ 
+  if(c==0)next;
+  dtc=subset(dt.n, dt.n$cluster==c)
+  
+  mouse=unique(dtc$mouse)
+  a=data.frame()
+  for (m in mouse)
+  {
+    dtm=subset(dt.n, dt.n$mouse==m)
+    dtcm=subset(dtc, dtc$mouse==m)
+    cDC1=sum(dtcm["cDC1"])/sum(dtm["cDC1"])
+    cDC2=sum(dtcm["cDC2"])/sum(dtm["cDC2"])
+    pDC=sum(dtcm["pDC"])/sum(dtm["pDC"])
+    mye=sum(dtcm["mye"])/sum(dtm["mye"])
+    B=sum(dtcm["B"])/sum(dtm["B"])
+    treatment=unique(dtcm$treatment)
+    b=data.frame(clsuter=c,mouse=m,treatment=treatment,
+                 cDC1=cDC1,cDC2=cDC2,pDC=pDC,mye=mye)
+    a=rbind(a,b)
+  }
+  D=rbind(D,a)
+}
+
+write.table(D, "proportional contribution to pop.txt", sep="\t", row.names=FALSE, col.names=TRUE)
+
+```
+
+# normalize data to cell number
+```{r}
+bc.PBS = subset(dt.n, dt.n$treatment=="PBS")
+
+bc.PBS$cDC1 = bc.PBS$cDC1/1.4e7*53257 # total #cDC1 produced by 14 PBS-treated mice
+  bc.PBS$cDC2 = bc.PBS$cDC2/1.4e7*44323
+  bc.PBS$pDC = bc.PBS$pDC/1.4e7*36509
+  bc.PBS$mye = bc.PBS$mye/1.4e7*823318
+  bc.PBS$B = bc.PBS$B/1.4e7*869332
+  bc.PBS$eos = bc.PBS$eos/1.4e7*39623
+  bc.PBS$mon = bc.PBS$mon/1.4e7*341084
+  bc.PBS$neu = bc.PBS$neu/1.4e7*442610
+
+bc.FL = subset(dt.n, dt.n$treatment=="FL")
+  bc.FL$cDC1 = bc.FL$cDC1/1.6e7*1082433 #total #cDC1 produced by 14 FL-treated mice
+  bc.FL$cDC2 = bc.FL$cDC2/1.6e7*224557 
+  bc.FL$pDC = bc.FL$pDC/1.6e7*102281 
+  bc.FL$mye = bc.FL$mye/1.6e7*1174073 
+  bc.FL$B = bc.FL$B/1.6e7*2270197 
+  bc.FL$eos = bc.FL$eos/1.6e7*46699 
+  bc.FL$mon = bc.FL$mon/1.6e7*509426 
+  bc.FL$neu = bc.FL$neu/1.6e7*617947 
+
+dt.n = rbind(bc.PBS,bc.FL)
+write.table(dt.n, "pool_cellnumber.txt", sep="\t", row.names=FALSE, col.names=TRUE)
+
+```
+
+# perform stat analysis on clone size between PBS vs FL per cluster
+```{r}
+D.pvalue=data.frame()
+D.foldchange=data.frame()
+cluster=unique(dt.n$cluster)
+for (c in cluster)
+{ 
+  if(c==0)next;
+  cnc=subset(dt.n, dt.n$cluster==c)
+  cnc.fl=subset(cnc, cnc$treatment=="FL")
+  cnc.pbs=subset(cnc, cnc$treatment=="PBS")
+  # count bc number
+  n.fl=nrow(cnc.fl)
+  n.pbs=nrow(cnc.pbs)
+  # stat test in clone size per cell type
+  cDC1=t.test(cnc.fl$cDC1, cnc.pbs$cDC1)
+   p.cDC1=cDC1$p.value
+  cDC2=t.test(cnc.fl$cDC2, cnc.pbs$cDC2)
+   p.cDC2=cDC2$p.value
+  pDC=t.test(cnc.fl$pDC, cnc.pbs$pDC)
+   p.pDC=pDC$p.value
+  mye=t.test(cnc.fl$mye, cnc.pbs$mye)
+   p.mye=mye$p.value
+  B=t.test(cnc.fl$B, cnc.pbs$B)
+   p.B=B$p.value
+  # calculate average fold change in clone size
+   fc.cDC1=colMeans(cnc.fl["cDC1"])/colMeans(cnc.pbs["cDC1"])
+   fc.cDC2=colMeans(cnc.fl["cDC2"])/colMeans(cnc.pbs["cDC2"])
+   fc.pDC=colMeans(cnc.fl["pDC"])/colMeans(cnc.pbs["pDC"])
+   fc.mye=colMeans(cnc.fl["mye"])/colMeans(cnc.pbs["mye"])
+   fc.B=colMeans(cnc.fl["B"])/colMeans(cnc.pbs["B"])
+    
+   p.Sum=data.frame(cluster=c,cDC1=p.cDC1, cDC2=p.cDC2, pDC=p.pDC,mye=p.mye, B=p.B)
+   fc.Sum=data.frame(cluster=c,cDC1=fc.cDC1, cDC2=fc.cDC2, pDC=fc.pDC,mye=fc.mye, B=fc.B)
+
+   D.pvalue=rbind(D.pvalue,p.Sum)
+   D.foldchange=rbind(D.foldchange,fc.Sum)
+}
+
+write.table(D.pvalue, "clone size_p value.txt", sep="\t", row.names=FALSE, col.names=TRUE)
+write.table(D.foldchange,  "clone size_fold change.txt",  sep="\t", row.names=FALSE, col.names=TRUE)
+```
+
+# Violin plots showing distribution of clone size
+```{r}
+cluster=unique(dt.n$cluster)
+for (c in cluster)
+{ 
+  if(c==0)next;
+  cell.num.c=subset(dt.n, dt.n$cluster==c)
+  cell.num.c$treatment <- factor(cell.num.c$treatment,levels = c("PBS", "FL"))
+  
+  P1=
+    ggplot(data=cell.num.c)+
+    geom_violin(aes(x=factor(treatment),y=cDC1, fill=factor(treatment)))+
+    scale_y_log10(limit=c(1,100000))+
+    scale_fill_manual(values = my_colour)+
+    theme(axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      axis.ticks=element_blank(),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.position="none",
+      panel.background=element_blank(),
+      panel.border=element_blank(),
+      panel.grid.major=element_blank(),
+      panel.grid.minor=element_blank(),
+      plot.background=element_blank())
+  P2=
+    ggplot(data=cell.num.c)+
+    geom_violin(aes(x=factor(treatment),y=cDC2,fill=factor(treatment)))+
+    scale_y_log10(limit=c(1,100000))+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+    scale_fill_manual(values = my_colour)+
+    theme(axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      axis.ticks=element_blank(),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.position="none",
+      panel.background=element_blank(),
+      panel.border=element_blank(),
+      panel.grid.major=element_blank(),
+      panel.grid.minor=element_blank(),
+      plot.background=element_blank())
+  P3=ggplot(data=cell.num.c)+
+    geom_violin(aes(x=factor(treatment),y=pDC,fill=factor(treatment)))+
+    scale_y_log10(limit=c(1,100000))+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+    scale_fill_manual(values = my_colour)+
+    theme(axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      axis.ticks=element_blank(),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.position="none",
+      panel.background=element_blank(),
+      panel.border=element_blank(),
+      panel.grid.major=element_blank(),
+      panel.grid.minor=element_blank(),
+      plot.background=element_blank())
+  P4=ggplot(data=cell.num.c)+
+    geom_violin(aes(x=factor(treatment),y=mye,fill=factor(treatment)))+
+    scale_y_log10(limit=c(1,100000))+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+    scale_fill_manual(values = my_colour)+
+    theme(axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      axis.ticks=element_blank(),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.position="none",
+      panel.background=element_blank(),
+      panel.border=element_blank(),
+      panel.grid.major=element_blank(),
+      panel.grid.minor=element_blank(),
+      plot.background=element_blank())
+  P5=ggplot(data=cell.num.c)+
+    geom_violin(aes(x=factor(treatment),y=B,fill=factor(treatment)))+
+    scale_y_log10(limit=c(1,100000))+
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))+
+    scale_fill_manual(values = my_colour)+
+    theme(axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      axis.ticks=element_blank(),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.position="none",
+      panel.background=element_blank(),
+      panel.border=element_blank(),
+      panel.grid.major=element_blank(),
+      panel.grid.minor=element_blank(),
+      plot.background=element_blank())
+  
+  pdf(file=paste("cluster", c, "clone size.pdf"),heigh =1,width=4)
+  multiplot(P1,P2,P3,P4,P5, cols=5)
+  dev.off()
+}
+```
