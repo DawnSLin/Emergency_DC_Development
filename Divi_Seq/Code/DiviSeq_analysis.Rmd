@@ -1,0 +1,522 @@
+---
+title: "Divi-Seq analysis"
+author: "Dawn Lin"
+date: "31/03/2020"
+output: html_notebook
+---
+
+# Load packages
+```{r,warning=FALSE,message=FALSE}
+library(scPipe)
+library(ggplot2)
+library(scater)
+library(scran)
+library(Seurat)
+library(pheatmap)
+library(dplyr)
+library(SingleR)
+```
+
+# Create SCE from each plate
+```{r}
+sce27 = create_sce_by_dir("/Users/lin.d/Desktop/dataprocessing/DL162_193/lc27",organism = "mmusculus_gene_ensembl",gene_id_type = "ensembl_gene_id")
+sce27 = calculate_QC_metrics(sce27)
+
+sce28 = create_sce_by_dir("/Users/lin.d/Desktop/dataprocessing/DL162_193/LC28",organism = "mmusculus_gene_ensembl",gene_id_type = "ensembl_gene_id")
+sce28 = calculate_QC_metrics(sce28)
+
+sce39 = create_sce_by_dir("/Users/lin.d/Desktop/dataprocessing/DL162_193/RPI39",organism = "mmusculus_gene_ensembl",gene_id_type = "ensembl_gene_id")
+sce39 = calculate_QC_metrics(sce39)
+
+sce41 = create_sce_by_dir("/Users/lin.d/Desktop/dataprocessing/DL162_193/RPI41",organism = "mmusculus_gene_ensembl",gene_id_type = "ensembl_gene_id")
+sce41 = calculate_QC_metrics(sce41)
+
+sce44 = create_sce_by_dir("/Users/lin.d/Desktop/dataprocessing//DL162_193/RPI44",organism = "mmusculus_gene_ensembl",gene_id_type = "ensembl_gene_id")
+sce44 = calculate_QC_metrics(sce44)
+
+sce46 = create_sce_by_dir("/Users/lin.d/Desktop/dataprocessing/DL162_193/RPI46",organism = "mmusculus_gene_ensembl",gene_id_type = "ensembl_gene_id")
+sce46 = calculate_QC_metrics(sce46)
+
+```
+
+# Detect outliers from each plate
+```{r}
+sce27 = detect_outlier(sce27,comp=2)
+table(sce27$outliers)
+
+sce28 = detect_outlier(sce28,comp=2)
+table(sce28$outliers)
+
+sce39 = detect_outlier(sce39,comp=2)
+table(sce39$outliers)
+
+sce41 = sce41[,sce41$total_count_per_cell>0]
+sce41 = detect_outlier(sce41,comp=2)
+table(sce41$outliers)
+
+sce44 = sce44[,sce44$total_count_per_cell>0]
+sce44 = detect_outlier(sce44,comp=2)
+table(sce44$outliers)
+
+sce46 = sce46[,sce46$total_count_per_cell>0]
+sce46 = detect_outlier(sce46,comp=2)
+table(sce46$outliers)
+```
+
+# Remove outliers from each plate
+```{r}
+sce27_qc = remove_outliers(sce27)
+sce28_qc = remove_outliers(sce28)
+sce39_qc = remove_outliers(sce39)
+sce41_qc = remove_outliers(sce41)
+sce44_qc = remove_outliers(sce44)
+sce46_qc = remove_outliers(sce46)
+```
+
+# normalize gene counts
+```{r}
+sce39_qc = computeSumFactors(sce39_qc)
+sce41_qc = computeSumFactors(sce41_qc)
+sce44_qc = computeSumFactors(sce44_qc)
+sce46_qc = computeSumFactors(sce46_qc)
+sce27_qc = computeSumFactors(sce27_qc)
+sce28_qc = computeSumFactors(sce28_qc)
+
+sce39_qc = normalize(sce39_qc)
+sce41_qc = normalize(sce41_qc)
+sce44_qc = normalize(sce44_qc)
+sce46_qc = normalize(sce46_qc)
+sce27_qc = normalize(sce27_qc)
+sce28_qc = normalize(sce28_qc)
+
+```
+
+# convert gene id
+```{r}
+sce27_qc = convert_geneid(sce27_qc)
+sce28_qc = convert_geneid(sce28_qc)
+sce39_qc = convert_geneid(sce39_qc)
+sce41_qc = convert_geneid(sce41_qc)
+sce44_qc = convert_geneid(sce44_qc)
+sce46_qc = convert_geneid(sce46_qc)
+```
+
+# find common genes across plates
+```{r}
+comm_gene = Reduce(intersect,list(rownames(sce39_qc),
+                                  rownames(sce41_qc),
+                                  rownames(sce44_qc),
+                                  rownames(sce46_qc),
+                                  rownames(sce27_qc),
+                                  rownames(sce28_qc)))
+
+sce39_qc = sce39_qc[comm_gene,]
+sce41_qc = sce41_qc[comm_gene,]
+sce44_qc = sce44_qc[comm_gene,]
+sce46_qc = sce46_qc[comm_gene,]
+sce27_qc = sce27_qc[comm_gene,]
+sce28_qc = sce28_qc[comm_gene,]
+
+sce39_qc$batch = "RPI39"
+sce41_qc$batch = "RPI41"
+sce44_qc$batch = "RPI44"
+sce46_qc$batch = "RPI46"
+sce27_qc$batch = "RPI27"
+sce28_qc$batch = "RPI28"
+
+sce39_qc$exp = "DL193"
+sce41_qc$exp = "DL193"
+sce44_qc$exp = "DL193"
+sce46_qc$exp = "DL193"
+sce27_qc$exp = "DL162"
+sce28_qc$exp = "DL162"
+
+colnames(sce39_qc) = paste("RPI39",colnames(sce39_qc),sep="_")
+colnames(sce41_qc) = paste("RPI41",colnames(sce41_qc),sep="_")
+colnames(sce44_qc) = paste("RPI44",colnames(sce44_qc),sep="_")
+colnames(sce46_qc) = paste("RPI46",colnames(sce46_qc),sep="_")
+colnames(sce27_qc) = paste("RPI27",colnames(sce27_qc),sep="_")
+colnames(sce28_qc) = paste("RPI28",colnames(sce28_qc),sep="_")
+```
+
+# Merge data from plates
+```{r}
+sce_DL162 = cbind(sce27_qc, sce28_qc)
+sce_DL193 = cbind(sce39_qc, sce41_qc, sce44_qc, sce46_qc)
+
+sce_DL162$non_ERCC_percent = NULL
+
+sce_merge = cbind(sce_DL162, sce_DL193)
+
+sce_merge = computeSumFactors(sce_merge)
+sce_merge = normalize(sce_merge)
+
+```
+
+# tSNE visulization of batch effect
+```{r}
+set.seed(100000)
+plotTSNE(sce_merge,colour_by = "batch")
+```
+
+```{r}
+set.seed(100000)
+plotTSNE(sce_merge,colour_by = "exp")
+```
+
+## batch correction using `MNN`
+```{r}
+library(batchelor)
+
+corrected = mnnCorrect(
+                       logcounts(sce27_qc[comm_gene,]),
+                       logcounts(sce28_qc[comm_gene,]),
+                       logcounts(sce39_qc[comm_gene,]),
+                       logcounts(sce41_qc[comm_gene,]),
+                       logcounts(sce44_qc[comm_gene,]),
+                       logcounts(sce46_qc[comm_gene,])
+                       )
+
+assay(sce_merge,"corrected") = assay(corrected,"corrected")
+  
+```
+
+# tsne visulization after batch correction
+```{r}
+set.seed(100000)
+sce_merge = runTSNE(sce_merge, exprs_values="corrected",perplexity=40)
+plotTSNE(sce_merge,colour_by = "batch")
+```
+
+# remove genes that are not of interests
+```{r}
+sce_merge = sce_merge[!grepl("ENSMUSG",rownames(sce_merge)),]
+sce_merge = sce_merge[!grepl("Hist",rownames(sce_merge)),]
+sce_merge = sce_merge[!grepl("^Rpl",rownames(sce_merge)),]
+sce_merge = sce_merge[!grepl("^Rps",rownames(sce_merge)),]
+sce_merge = sce_merge[!grepl("^H2ac",rownames(sce_merge)),]
+```
+
+## add FACS annotation
+
+# add FACS data for DL193 (experiment 2)
+```{r}
+library(readxl)
+C083_DL193_NN163_Labat_Danielle_SeqPrimer_layout_Oct19 <- read_excel("/Users/lin.d/Desktop/dataprocessing/DL162_193/C083_DL193_NN163_Labat_Danielle_SeqPrimer layout_Oct19.xlsx",sheet = "DL193 Sample & Index", skip = 3)
+
+facs_anno = C083_DL193_NN163_Labat_Danielle_SeqPrimer_layout_Oct19[,c("Well position","Treatment","Mouse number","CN_CD11c","CN_CD117","CN_CD34","CN_CD11b","CN_Sca1","CN_CD45-1","CN_CD48","CN_CTV","CN_CD45-2","CN_CD127","CN_CD150","CN_CD16/32","(separate index read)...32")]
+facs_anno$primer_idx = gsub(" ", "", facs_anno$`(separate index read)...32`, fixed = TRUE) 
+facs_anno = facs_anno[!is.na(facs_anno$Treatment),]
+facs_anno  = facs_anno[!is.na(facs_anno$primer_idx),]
+facs_anno = facs_anno[!(facs_anno$primer_idx=="removed"),]
+facs_anno$cellname = paste(facs_anno$primer_idx,facs_anno$`Well position`,sep="_")
+facs_anno = as.data.frame(facs_anno)
+rownames(facs_anno) = facs_anno$cellname
+
+sce_DL193 = sce_DL193[,colnames(sce_DL193) %in% rownames(facs_anno)]
+DL193_facs_anno = facs_anno[colnames(sce_DL193),]
+
+DL193_facs_anno = facs_anno[,c(1:15,18)]
+colnames(DL193_facs_anno) = c("Well", "treatment", "mouse", 
+                        "CD11c", "CD117","CD34","CD11b","Sca1","CD45.1",
+                        "CD48","CTV","CD45.2","CD127","CD150","CD16/32",
+                        "cellname")
+
+```
+
+# add FACS data for DL162 (experiment 1)
+```{r}
+FACS_col = c("CTV",	"Sca1",	"CD45.2",	"CD34",	"CD135",	"CD117",	"CD150",	"CD11c",	"CD16/32",	"CD45.1")
+
+LC27_annotation <- read.csv("LC27_annotation.csv", header=FALSE, stringsAsFactors=FALSE)
+LC27_annotation = LC27_annotation[!is.na(LC27_annotation$V1),]
+LC27_annotation = LC27_annotation[,c(2,4,10,18:27)]
+LC27_annotation$cellname = paste("RPI27",LC27_annotation$V2,sep="_")
+rownames(LC27_annotation) = LC27_annotation$cellname
+colnames(LC27_annotation) = c("Well","mouse","treatment",FACS_col,"cellname")
+
+LC28_annotation <- read.csv("LC28_annotation.csv", header=FALSE, stringsAsFactors=FALSE)
+LC28_annotation = LC28_annotation[!is.na(LC28_annotation$V1),]
+LC28_annotation = LC28_annotation[,c(2,4,10,18:27)]
+LC28_annotation$cellname = paste("RPI28",LC28_annotation$V2,sep="_")
+rownames(LC28_annotation) = LC28_annotation$cellname
+colnames(LC28_annotation) = c("Well","mouse","treatment",FACS_col,"cellname")
+
+DL162_facs_anno = rbind(LC27_annotation,LC28_annotation)
+sce_DL162 = cbind(sce27_qc, sce28_qc)
+sce_DL162 = sce_DL162[,colnames(sce_DL162) %in% rownames(DL162_facs_anno)]
+DL162_facs_anno = DL162_facs_anno[colnames(sce_DL162),]
+
+```
+
+# add facs data to sce_merge (common markers between experiments)
+```{r}
+DL162_sel = as.data.frame(DL162_facs_anno[,c("mouse","treatment","CTV",               "CD117","Sca1","CD34","CD150","CD11c","CD16/32")])
+
+DL193_sel = as.data.frame(DL193_facs_anno[,c("mouse","treatment","CTV",               "CD117","Sca1","CD34","CD150","CD11c","CD16/32")])
+
+comm_anno = rbind(DL162_sel,DL193_sel)
+
+colData(sce_merge) = cbind(colData(sce_merge),DataFrame(comm_anno[rownames(colData(sce_merge)),]))
+
+sce_merge = sce_merge[,colnames(sce_merge) %in% rownames(comm_anno)]
+
+sce_merge = sce_merge[,!(colnames(sce_merge) %in% c("RPI27_A23","RPI27_A24","RPI28_A23","RPI28_A24"))]
+```
+
+# Use ComBat to correct batch (exp) effect for FACS marker expression
+```{r}
+library(sva)
+
+FACS_corrected = t(as.data.frame(colData(sce_merge)[,c(17:23)]))
+batch = colData(sce_merge)$exp
+
+FACS_corrected = t(ComBat(FACS_corrected, batch = batch))
+colnames(FACS_corrected) = paste(colnames(FACS_corrected), "corrected", sep="_")
+
+colData(sce_merge) = cbind(colData(sce_merge), FACS_corrected)
+
+```
+
+## Seurat analysis
+
+# Create Seurat object and run PCA
+```{r}
+srt <- CreateSeuratObject(counts = counts(sce_merge),meta.data=as.data.frame(colData(sce_merge)))
+srt = SCTransform(srt,verbose = FALSE)
+srt@assays$SCT@scale.data = assay(sce_merge,"corrected")
+
+srt <- RunPCA(object = srt, verbose = FALSE)
+```
+
+# Assign Cell cycle scores per cell using Seurat
+```{r}
+s.genes <- tolower(cc.genes$s.genes)
+g2m.genes <- tolower(cc.genes$g2m.genes)
+simpleCap <- function(x) {
+  paste(toupper(substring(x, 1,1)), substring(x, 2),
+      sep="")
+}
+s.genes = simpleCap(s.genes)
+g2m.genes = simpleCap(g2m.genes)
+
+srt = CellCycleScoring(srt,s.features = s.genes, g2m.features = g2m.genes, set.ident = FALSE)
+
+head(srt[[]])
+```
+
+# regress out cell cycle genes
+```{r}
+srt <- ScaleData(srt, vars.to.regress = c("S.Score", "G2M.Score"), features = rownames(srt))
+```
+
+# re-run clustering after cell cycle gene regression
+```{r}
+srt <- FindNeighbors(object = srt, k.param=40, dims = 1:20, verbose = FALSE)
+srt <- FindClusters(object = srt, verbose = FALSE)
+DimPlot(srt,label=T)
+```
+
+# find marker genes for clusters
+```{r,fig.height=9,fig.width=9}
+srt.markers <- FindAllMarkers(srt, only.pos = TRUE,verbose=FALSE)
+
+top10 <- srt.markers %>% group_by(cluster) %>% top_n(n = 10, wt = -p_val_adj) 
+top10 <- top10 %>% group_by(cluster) %>% top_n(n = 8, wt = avg_logFC)
+DoHeatmap(srt, features = top10$gene)
+```
+
+
+## SingleR analysis
+
+# SingleR analysis of main cell types from ImmGen
+```{r}
+immg = ImmGenData()
+pred.hesc.main <- SingleR(test = sce_merge, ref = immg, labels = immg$label.main)
+plotScoreHeatmap(pred.hesc.main, 
+                 annotation_col = as.data.frame(colData(sce_merge)[,"treatment",drop=FALSE]),
+                 clusters = srt$seurat_clusters, order.by.clusters = TRUE,
+                 show.labels = TRUE, show.pruned = FALSE,
+                 filename="heatmap_SingleR_main.pdf",width = 10,height = 12
+)
+```
+
+# SingleR analysis of fine cell types from ImmGen
+```{r}
+pred.hesc.fine <- SingleR(test = sce_merge, ref = immg, labels = immg$label.fine)
+plotScoreHeatmap(pred.hesc.fine, 
+                 annotation_col = as.data.frame(colData(sce_merge)[,"treatment",drop=FALSE]),
+                 clusters = srt$seurat_clusters, order.by.clusters = TRUE,
+                 show.labels = TRUE, show.pruned = FALSE,
+                 filename="heatmap_SingleR_fine.pdf",width = 10,height = 12
+)
+```
+
+# Save RData
+```{r}
+save.image(file="DiviSeq.RData")
+```
+
+
+## Plot generation
+
+# plot heatmap with annotation
+```{r}
+tmp_mat = srt@assays$SCT@scale.data[unique(top10$gene[top10$gene %in% rownames(srt@assays$SCT@scale.data)]),]
+tmp_mat = t(scale(t(tmp_mat)))
+tmp_mat[tmp_mat>3] = 3
+
+anno_df = data.frame(treatment=srt$treatment,
+                     CTV=sce_merge$CTV_corrected,
+                     CD117=sce_merge$CD117_corrected,
+                     Sca1=sce_merge$Sca1_corrected,
+                     CD150=sce_merge$CD150_corrected,
+                     CD11c=sce_merge$CD11c_corrected,
+                     CD34=sce_merge$CD34_corrected,
+                     CD16.32=sce_merge$CD16.32_corrected,
+                     clusters=srt$seurat_clusters,
+                     stringsAsFactors = FALSE)
+
+cluster_col = c("#7FC97F","#BEAED4","#F4A667","#99950B","#386CB0","#F0027F","#BF5B17")
+names(cluster_col) = as.character(unique(srt$seurat_clusters))
+
+annotation_colors = list(
+  clusters=cluster_col,
+  treatment=c(PBS = "#09A2D1", FL = "#F2AA4CFF"),
+  CTV=BlueAndRed(),
+  CD117=BlueAndRed(),
+  Sca1=BlueAndRed(),
+  CD150=BlueAndRed(),
+  CD34=BlueAndRed(),
+  CD11c=BlueAndRed(),
+  CD16.32=BlueAndRed()
+  )
+
+pheatmap(tmp_mat[,order(srt$seurat_clusters)],
+         cluster_cols = FALSE, 
+         cluster_rows = FALSE,
+         annotation_col = anno_df,
+         annotation_colors=annotation_colors,
+         show_colnames = FALSE,
+         color=PurpleAndYellow(),
+         filename="heatmap_cluster_with_annotation.pdf",width = 5,height = 8)
+```
+
+#  violin plot of CTV profiles per cluster
+```{r}
+treatment_col = c(PBS = "#09A2D1", FL = "#F2AA4CFF")
+
+tmp = as.data.frame(srt@meta.data[,16:37])
+tmp$treatment <- factor(tmp$treatment,levels = c("PBS", "FL"))
+
+pdf("cluster_CTV_violin.pdf",width = 7.5,height = 3)
+ggplot(data = tmp,aes(x = treatment,y = CTV_corrected, fill = treatment))+
+    geom_violin()+
+    scale_fill_manual(values = treatment_col)+
+    scale_colour_manual(values = treatment_col)+
+    facet_wrap(~ seurat_clusters,nrow = 1)+
+    stat_summary(geom = "errorbar")+
+    theme_classic()
+dev.off()
+```
+
+# stat test of CTV per cluster
+```{r}
+temp = as.data.frame(srt@meta.data[,c("treatment","CTV_corrected","seurat_clusters")])
+
+cluster = unique(temp$seurat_clusters)
+test_output = data.frame()
+for (i in cluster){
+  #i=2
+  temp_cluster = subset(temp, temp$seurat_clusters==i)
+  temp_PBS = subset (temp_cluster, temp_cluster$treatment=="PBS")
+  temp_FL = subset (temp_cluster, temp_cluster$treatment=="FL")
+  
+  tTest = t.test(temp_PBS$CTV, temp_FL$CTV)
+  rankTest = wilcox.test(temp_PBS$CTV, temp_FL$CTV)
+  pValue = data.frame(cluster = i, t_Test = tTest$p.value, rank_Test = rankTest$p.value)
+  options(scipen=999)
+  test_output = rbind(test_output,pValue)
+}
+write.table(test_output, file = "cluster_CTV_stats.txt", sep="\t", 
+            row.names = FALSE, col.names = TRUE)
+```
+
+# Scatter plots
+```{r}
+library(tidyverse)
+
+tmp = as.data.frame(srt@meta.data[,17:40])
+
+cluster_col = c("#7FC97F","#BEAED4","#F4A667","#99950B","#386CB0","#F0027F","#BF5B17")
+names(cluster_col) = as.character(unique(tmp$seurat_clusters))
+treatment_col = c(PBS = "#09A2D1", FL = "#F2AA4CFF")
+
+tmp = tmp %>% mutate(C2 = case_when(seurat_clusters==2 & treatment=="PBS" ~ 'C2_PBS',
+                                      seurat_clusters==2 & treatment=="FL" ~ 'C2_FL',
+                                      TRUE ~ 'not_C2'))
+
+pdf("cKitvsCD11c_scatter_color_by_clusters.pdf", width = 2, height = 2)
+ggplot(data=tmp,aes_string(x="CD11c_corrected",y="CD117_corrected",col="seurat_clusters"))+
+  geom_point(alpha = 0.5, size = 0.5, show.legend = FALSE)+
+  scale_colour_manual(values = cluster_col)+
+  ylim(500, 3100)+
+  theme_classic()
+dev.off()
+
+pdf("cKitvsCD11c_scatter_color_by_treatment.pdf", width = 2, height = 2)
+ggplot(data=tmp,aes_string(x="CD11c_corrected",y="CD117_corrected",col="treatment"))+
+  geom_point(alpha = 0.5, size = 0.5, show.legend = FALSE)+
+  scale_color_manual(values = c(PBS = "#09A2D1", FL = "#F2AA4CFF"))+
+  ylim(500, 3100)+
+  theme_classic()
+dev.off()
+
+tmp1 = subset(tmp, tmp$C2=="C2_PBS")
+tmp2 = subset(tmp, tmp$C2=="C2_FL")
+tmp3 = subset(tmp, tmp$C2=="not_C2")
+temp = rbind(tmp3, tmp1, tmp2)
+
+pdf("cKitvsCD11c_scatter_color_by_C2.pdf", width = 2, height = 2)
+ggplot(data=temp,aes_string(x="CD11c_corrected",y="CD117_corrected",col="C2"))+
+  geom_point(alpha = 0.5, size = 0.5, show.legend = FALSE)+
+  scale_color_manual(values = c("#F1AA4C","#10A2D0","#D1D3D4"))+
+  ylim(500, 3100)+
+  theme_classic()
+dev.off()
+```
+
+# Count number of cells per cluster
+```{r}
+tmp = as.data.frame(srt@meta.data[,17:40])
+
+D=data.frame()
+cluster=unique(tmp$seurat_clusters)
+for (c in cluster)
+{ 
+  tmp_c=subset(tmp, tmp$seurat_clusters==c)
+
+  mouse=unique(tmp$mouse)
+  a=data.frame()
+  for (m in mouse)
+  {
+    counts=sum(tmp_c$mouse==m) 
+    b=data.frame(mouse=m,counts=counts)
+    b$cluster=c
+    a=rbind(a,b)
+  }
+  D=rbind(D,a)
+}
+write.table(D, "CellCount_cluster_mouse.txt", sep="\t", row.names=FALSE, col.names=TRUE)
+```
+
+```{r}
+sessionInfo()
+```
+
+# Save RData
+```{r}
+save.image(file="DiviSeq.RData")
+```
+
+
