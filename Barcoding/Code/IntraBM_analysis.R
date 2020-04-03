@@ -68,3 +68,25 @@ write.table(bc.count, file=paste("IntraBM_barcode_count.txt", sep="_"), sep="\t"
 
 
 
+##### plot heatmap ##### 
+
+library(pheatmap)
+
+dt.pool = dt.pool[c("cDC1","cDC2","pDC","mye","B","E","eos","mon","neu",
+                      "treatment","mouse","x","y")]
+# specify what annotation to add per row
+anno_row = dt.pool["treatment"]
+
+# change colors for annotation
+my_colour = list(
+  treatment = c(PBS = "#09A2D1", FL = "#F2AA4CFF")
+)
+
+pheatmap(data.matrix(dt.pool[,c("cDC1","cDC2","pDC","mye","B","E")]),
+         cluster_rows = T, cluster_cols = T, 
+         annotation_row = anno_row,
+         annotation_colors = my_colour,
+         filename = "heatmap.pdf",
+         width = 4,
+         height = 5
+)

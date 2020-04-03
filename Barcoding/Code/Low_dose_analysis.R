@@ -65,5 +65,24 @@ for (m in mouse)
 }
 write.table(bc.count, file=paste("low_dose_barcode_count.txt", sep="_"), sep="\t", row.names=FALSE, col.names=TRUE)
 
+##### plot heatmap ##### 
+library(pheatmap)
+dt.pool = dt.pool[c("cDC1","cDC2","pDC","mye","B","eos","mon","neu",
+                    "treatment","mouse","x","y")]
+# specify what annotation to add per row
+anno_row = dt.pool["treatment"]
 
+# change colors for annotation
+my_colour = list(
+  treatment = c(PBS = "#09A2D1", FL = "#F2AA4CFF")
+)
+
+pheatmap(data.matrix(dt.pool[,c("cDC1","cDC2","pDC","mye","B")]),
+         cluster_rows = T, cluster_cols = F, 
+         annotation_row = anno_row,
+         annotation_colors = my_colour,
+         filename = "heatmap_2.pdf",
+         width = 4,
+         height = 4
+)
 
